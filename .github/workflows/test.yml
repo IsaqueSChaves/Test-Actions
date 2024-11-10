@@ -1,0 +1,46 @@
+name: Lint
+on:
+  pull_request:
+    paths:
+      - '**.js'
+      - '**.jsx'
+      - '**.ts'
+      - '**.tsx'
+    types: [opened, reopened, ready_for_review]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.pull_request.draft }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - run: git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Dependencies
+        run: |
+          curl https://install.meteor.com | /bin/sh
+
+      - name: Cache dependencies
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ./node_modules
+          key: modules-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: meteor npm install
+
+      - name: Get changed files
+        id: files
+        run: |
+          echo "list=$(git diff --name-only ${{ github.base_ref }} | grep -E '\.(ts|tsx|js|jsx)$' | xargs git ls-files --error-unmatch -- 2> /dev/null | xargs)" >> $GITHUB_ENV
+        shell: bash
+      - name: Lint changed files
+        run: npx eslint ${{ env.list }}
+        continue-on-error: false
